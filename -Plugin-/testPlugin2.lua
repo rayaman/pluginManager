@@ -1,0 +1,8 @@
+-- plugin.init("superPlugin")
+plugin.OnLoaded(function()
+	print(PLUGIN_NAME.." has been loaded!")
+	local epic = plugin.getPluginRef("PluginEpic")
+	epic.newPerson("Ryan",22,"male")
+	print(epic.getName())
+	local list = plugin.getPluginList()
+end)
