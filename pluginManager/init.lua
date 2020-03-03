@@ -103,8 +103,8 @@ local function _expose(tab,readonly)
 		elseif tab=="std" then
 			tab = [[_VERSION,assert,collectgarbage,error,getfenv,getmetatable,ipairs,loadstring,module,next,pairs,pcall,print,rawequal,rawget,rawset,select,setfenv,setmetatable,tonumber,tostring,type,unpack,xpcall,math,coroutine,string,table]]
 			_expose({
-				io = {io.tmpfile,io.write},
-				os = {os.clock,os.date,os.difftime,os.exit,os.getenv,os.remove,os.rename,os.setlocale,os.time,os.tmpname},
+				io = {tmpfile = io.tmpfile,write = io.write},
+				os = {clock = os.clock,date = os.date,difftime = os.difftime,getenv = os.getenv,setlocale = os.setlocale,time = os.time,tmpname = os.tmpname},
 				_G = exposed
 			},readonly)
 		end
@@ -131,6 +131,9 @@ local function file_exists(name)
 	local f=io.open(name,"r")
 	if f~=nil then io.close(f) return true else return false end
 end
+local function _import(name,data)
+	__imports[name] = data
+end
 local GLOBAL = {__PluginList={},vars = {}}
 local conn = multi:newConnection(true)
 local conn2 = multi:newConnection(true)
@@ -144,6 +147,7 @@ local function cleanTab(tab)
 		tab[i]=nil
 	end
 end
+local __imports = {}
 local function load_(path)
 	if not file_exists(pluginLocation..package.config:sub(1,1)..path) then return end 
 	local chunk = loadfile(pluginLocation..package.config:sub(1,1)..path)
@@ -151,14 +155,18 @@ local function load_(path)
 	local temp = {}
 	merge(temp,exposed)
 	merge(temp,{
+		import = function(name)
+			return __imports[name]
+		end,
 		plugin = {
 			version = version,
 			OnLoaded = conn,
 			OnPreload = conn3,
 			OnReboot = conn4,
-			init = function(name,version)
+			init = function(version)
+				local name = path:sub(1,-5):lower() -- Plugin name is equal to filename
 				temp["PLUGIN_NAME"]=name
-				GLOBAL[name] = {version = version}
+				GLOBAL[name] = {version = version or "1.0.0"}
 				table.insert(GLOBAL.__PluginList,name) 
 				if not dirExists(pluginLocation..package.config:sub(1,1)..name) then
 					mkDir(pluginLocation..package.config:sub(1,1)..name)
@@ -205,6 +213,10 @@ local function load_(path)
 				local t = package.config:sub(1,1)
 				os.remove(pluginLocation..t..temp["PLUGIN_NAME"]..t..path,false)
 			end,
+			fileExists = function(path)
+				local t = package.config:sub(1,1)
+				return file_exists(pluginLocation..t..temp["PLUGIN_NAME"]..t..path)
+			end,
 			setGlobal = function(var,val)
 				GLOBAL.vars[var]=val
 			end,
@@ -216,7 +228,7 @@ local function load_(path)
 			end,
 			getPluginRef = function(name)
 				local meh = {}
-				local link = GLOBAL[name]
+				local link = GLOBAL[name:lower()]
 				setmetatable(meh,{
 					__index = link -- Cannot alter a plugin's created domain but can read from it
 				})
@@ -285,6 +297,7 @@ plugin.setPluginFolder = _setPluginFolder
 plugin.setProtection =_setProtection
 plugin.expose =_expose
 plugin.load =_load
+plugin.setImport = _import
 plugin.grant = _grant
 -- plugin.reloadPlugins = _reload
 return plugin
